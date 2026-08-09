@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Editor de Grade — Pixel Art Mistério</title>
+<style>
+  :root { --border:#ddd; --panel:#f7f6f2; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    margin: 0; padding: 16px; background: #fff; color: #222;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.sub { color: #666; font-size: 13px; margin: 0 0 16px; }
+  .layout { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px; min-width: 220px;
+  }
+  .panel h2 { font-size: 13px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .04em; color: #555; }
+  label { display: block; font-size: 12px; margin: 8px 0 2px; color: #444; }
+  input[type=number] { width: 70px; padding: 4px; border: 1px solid var(--border); border-radius: 4px; }
+  input[type=text] { width: 100%; padding: 4px; border: 1px solid var(--border); border-radius: 4px; }
+  button {
+    cursor: pointer; border: 1px solid var(--border); background: #fff; border-radius: 6px;
+    padding: 6px 10px; font-size: 12px; margin: 4px 4px 0 0;
+  }
+  button:hover { background: #eee; }
+  button.primary { background: #222; color: #fff; border-color: #222; }
+  button.primary:hover { background: #444; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .swatches { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; max-height: 320px; overflow-y: auto; }
+  .swatch {
+    display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px;
+    border: 1px solid transparent; cursor: pointer; font-size: 12px;
+  }
+  .swatch.active { border-color: #222; background: #fff; }
+  .swatch .chip { width: 22px; height: 22px; border-radius: 4px; border: 1px solid #999; flex: 0 0 auto; }
+  .swatch input[type=text] { flex: 1; font-size: 11px; padding: 2px 4px; }
+  .swatch .num { width: 18px; text-align: center; font-weight: bold; color: #555; }
+  .swatch .del { margin-left: auto; background: none; border: none; color: #999; font-size: 14px; padding: 0 4px; }
+  .tool-btn.active { background: #222; color: #fff; }
+  canvas { border: 1px solid #999; image-rendering: pixelated; cursor: crosshair; touch-action: none; }
+  #refImg { max-width: 340px; max-height: 460px; border: 1px solid var(--border); border-radius: 6px; display:block; }
+  .canvas-wrap { overflow: auto; max-width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 8px; background:#fafafa;}
+  .hint { font-size: 11px; color: #888; margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<h1>Editor de Grade — Pixel Art Mistério</h1>
+<p class="sub">Corrija manualmente as células após a primeira passada automática, ou pinte do zero. Clique para pintar, arraste para pintar várias células, botão direito (ou tecla E) apaga a célula.</p>
+
+<div class="layout">
+
+  <div class="panel" style="width:260px">
+    <h2>Referência</h2>
+    <input type="file" id="refUpload" accept="image/*">
+    <img id="refImg" style="margin-top:8px; cursor: crosshair;">
+    <div class="hint">Com o conta-gotas ativo, clique na referência pra pegar uma cor exata dela.</div>
+    <button class="primary" id="autoDetectBtn" style="margin-top:8px; width:100%;">⚡ Detectar automaticamente (v1)</button>
+    <div class="hint">Preenche a grade sozinho a partir da referência. Depois é só corrigir as células erradas na mão.</div>
+  </div>
+
+  <div class="panel" style="width:260px">
+    <h2>Grade</h2>
+    <div class="row">
+      <div><label>Colunas</label><input type="number" id="cols" value="42" min="2" max="120"></div>
+      <div><label>Linhas</label><input type="number" id="rows" value="55" min="2" max="120"></div>
+    </div>
+    <div class="row"><label>Tamanho da célula (tela, px)</label><input type="number" id="cellPx" value="20" min="6" max="60"></div>
+    <button id="resizeBtn">Aplicar tamanho de grade</button>
+    <div class="hint">Redimensionar apaga a pintura atual.</div>
+
+    <h2 style="margin-top:16px">Ferramenta</h2>
+    <button class="tool-btn active" id="toolPaint">🖌 Pintar</button>
+    <button class="tool-btn" id="toolErase">🧹 Apagar</button>
+    <button class="tool-btn" id="toolEyedrop">💧 Conta-gotas</button>
+    <div class="hint">Conta-gotas funciona clicando na grade OU na imagem de referência.</div>
+    <button id="undoBtn" style="margin-top:8px;">↩ Desfazer (Ctrl+Z)</button>
+
+    <h2 style="margin-top:16px">Paleta</h2>
+    <div class="row">
+      <input type="color" id="newColor" value="#000000">
+      <button id="addColorBtn">+ Adicionar cor</button>
+    </div>
+    <div class="swatches" id="swatches"></div>
+  </div>
+
+  <div class="panel" style="width:auto; flex:1; min-width:340px;">
+    <h2>Grade editável</h2>
+    <div class="canvas-wrap">
+      <canvas id="grid"></canvas>
+    </div>
+
+    <h2 style="margin-top:16px">Exportar</h2>
+    <div class="row">
+      <div><label>Largura final (px)</label><input type="number" id="exportW" value="2362"></div>
+      <div><label>Altura final (px)</label><input type="number" id="exportH" value="3189"></div>
+    </div>
+    <div class="hint">Padrão = especificação Etsy (200×270mm, compatível A4/Carta).</div>
+    <div class="row" style="margin-top:8px;">
+      <button class="primary" id="exportPngBtn">⬇ Baixar PNG (gabarito)</button>
+      <button class="primary" id="exportJsonBtn">⬇ Baixar JSON (grade + paleta)</button>
+    </div>
+    <div class="hint">O JSON é o formato mais confiável para eu montar a versão mistério, legenda e PDFs — envie ele de volta no chat.</div>
+  </div>
+
+</div>
+
+<script>
+let cols = 25, rows = 30, cellPx = 20;
+let palette = []; // {hex, num}
+let activeIdx = 0;
+let tool = 'paint';
+let grid = []; // grid[r][c] = paletteIndex or -1 (vazio)
+let history = []; // pilha de undo: {grid, palette}
+const HISTORY_LIMIT = 60;
+
+function snapshot() {
+  history.push({
+    grid: grid.map(row => row.slice()),
+    palette: palette.map(p => ({...p})),
+  });
+  if (history.length > HISTORY_LIMIT) history.shift();
+}
+
+function undo() {
+  if (!history.length) return;
+  const prev = history.pop();
+  grid = prev.grid;
+  palette = prev.palette;
+  if (activeIdx >= palette.length) activeIdx = Math.max(0, palette.length - 1);
+  drawGrid();
+  renderSwatches();
+}
+
+window.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+    e.preventDefault();
+    undo();
+  }
+});
+
+const canvas = document.getElementById('grid');
+const ctx = canvas.getContext('2d');
+
+function resetGrid() {
+  grid = Array.from({length: rows}, () => Array(cols).fill(-1));
+}
+
+function defaultPalette() {
+  palette = [
+    {hex:'#000000'}, {hex:'#ffffff'}, {hex:'#f09cb4'}, {hex:'#549c30'}, {hex:'#2a5c14'}
+  ];
+  renumber();
+}
+function renumber() { palette.forEach((p,i)=>p.num = i+1); }
+
+function drawGrid() {
+  canvas.width = cols * cellPx;
+  canvas.height = rows * cellPx;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  for (let r=0; r<rows; r++) {
+    for (let c=0; c<cols; c++) {
+      const idx = grid[r][c];
+      ctx.fillStyle = idx === -1 ? '#ffffff' : palette[idx].hex;
+      ctx.fillRect(c*cellPx, r*cellPx, cellPx, cellPx);
+      ctx.strokeStyle = '#ccc';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(c*cellPx+0.5, r*cellPx+0.5, cellPx-1, cellPx-1);
+    }
+  }
+}
+
+function renderSwatches() {
+  const box = document.getElementById('swatches');
+  box.innerHTML = '';
+  palette.forEach((p, i) => {
+    const div = document.createElement('div');
+    div.className = 'swatch' + (i===activeIdx ? ' active' : '');
+    div.innerHTML = `
+      <span class="num">${p.num}</span>
+      <span class="chip" style="background:${p.hex}"></span>
+      <input type="text" value="${p.hex}" data-i="${i}">
+      <button class="del" data-i="${i}" title="Remover cor">×</button>
+    `;
+    div.querySelector('.chip').addEventListener('click', () => { activeIdx = i; renderSwatches(); });
+    div.querySelector('input').addEventListener('change', (e) => {
+      const newHex = e.target.value;
+      const dupIdx = palette.findIndex((p, j) => j !== i && hexEquals(p.hex, newHex));
+      snapshot();
+      if (dupIdx !== -1) {
+        // funde: remove a cor atual (i), redireciona todas as celulas pra dupIdx
+        mergeSwatches(i, dupIdx);
+      } else {
+        palette[i].hex = newHex;
+      }
+      drawGrid(); renderSwatches();
+    });
+    div.querySelector('.del').addEventListener('click', (e) => {
+      e.stopPropagation();
+      snapshot();
+      const removeIdx = i;
+      palette.splice(removeIdx,1);
+      renumber();
+      for (let r=0;r<rows;r++) for (let c=0;c<cols;c++) {
+        if (grid[r][c] === removeIdx) grid[r][c] = -1;
+        else if (grid[r][c] > removeIdx) grid[r][c]--;
+      }
+      if (activeIdx >= palette.length) activeIdx = palette.length-1;
+      drawGrid(); renderSwatches();
+    });
+    box.appendChild(div);
+  });
+}
+
+function mergeSwatches(removeIdx, keepIdx) {
+  for (let r=0;r<rows;r++) for (let c=0;c<cols;c++) {
+    if (grid[r][c] === removeIdx) grid[r][c] = keepIdx;
+  }
+  palette.splice(removeIdx,1);
+  for (let r=0;r<rows;r++) for (let c=0;c<cols;c++) {
+    if (grid[r][c] > removeIdx) grid[r][c]--;
+  }
+  renumber();
+  if (activeIdx >= palette.length) activeIdx = palette.length-1;
+}
+
+function cellFromEvent(e) {
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+  const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+  const c = Math.floor(x / cellPx);
+  const r = Math.floor(y / cellPx);
+  if (r<0||r>=rows||c<0||c>=cols) return null;
+  return [r,c];
+}
+
+let painting = false;
+function paintAt(e) {
+  const cell = cellFromEvent(e);
+  if (!cell) return;
+  const [r,c] = cell;
+  if (tool === 'eyedrop') {
+    const idx = grid[r][c];
+    if (idx !== -1) { activeIdx = idx; renderSwatches(); }
+    setTool('paint');
+    return;
+  }
+  grid[r][c] = (tool === 'erase') ? -1 : activeIdx;
+  drawGrid();
+}
+canvas.addEventListener('mousedown', (e) => {
+  if (tool !== 'eyedrop') snapshot();
+  painting = true; paintAt(e);
+});
+window.addEventListener('mouseup', () => painting = false);
+canvas.addEventListener('mousemove', (e) => { if (painting && tool !== 'eyedrop') paintAt(e); });
+canvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  snapshot();
+  const prevTool = tool; tool='erase'; paintAt(e); tool = prevTool;
+});
+
+function setTool(t) {
+  tool = t;
+  ['toolPaint','toolErase','toolEyedrop'].forEach(id => document.getElementById(id).classList.remove('active'));
+  const map = {paint:'toolPaint', erase:'toolErase', eyedrop:'toolEyedrop'};
+  document.getElementById(map[t]).classList.add('active');
+}
+document.getElementById('toolPaint').addEventListener('click', () => setTool('paint'));
+document.getElementById('toolErase').addEventListener('click', () => setTool('erase'));
+document.getElementById('toolEyedrop').addEventListener('click', () => setTool('eyedrop'));
+
+// conta-gotas na imagem de referencia
+document.getElementById('refImg').addEventListener('click', (e) => {
+  if (!refImageObj) return;
+  const imgEl = e.target;
+  const rect = imgEl.getBoundingClientRect();
+  const scaleX = refImageObj.naturalWidth / rect.width;
+  const scaleY = refImageObj.naturalHeight / rect.height;
+  const x = Math.floor((e.clientX - rect.left) * scaleX);
+  const y = Math.floor((e.clientY - rect.top) * scaleY);
+
+  const off = document.createElement('canvas');
+  off.width = refImageObj.naturalWidth; off.height = refImageObj.naturalHeight;
+  const octx = off.getContext('2d');
+  octx.drawImage(refImageObj, 0, 0);
+  const [r,g,b] = octx.getImageData(x, y, 1, 1).data;
+  const hex = '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
+
+  snapshot();
+  addOrSelectColor(hex);
+  setTool('paint');
+});
+
+function hexEquals(a, b) { return a.toLowerCase() === b.toLowerCase(); }
+
+function addOrSelectColor(hex) {
+  const existing = palette.findIndex(p => hexEquals(p.hex, hex));
+  if (existing !== -1) { activeIdx = existing; }
+  else { palette.push({hex}); renumber(); activeIdx = palette.length - 1; }
+  renderSwatches();
+}
+
+document.getElementById('addColorBtn').addEventListener('click', () => {
+  snapshot();
+  const hex = document.getElementById('newColor').value;
+  addOrSelectColor(hex);
+});
+
+document.getElementById('resizeBtn').addEventListener('click', () => {
+  snapshot();
+  cols = parseInt(document.getElementById('cols').value);
+  rows = parseInt(document.getElementById('rows').value);
+  cellPx = parseInt(document.getElementById('cellPx').value);
+  resetGrid();
+  drawGrid();
+});
+
+let refImageObj = null;
+
+document.getElementById('refUpload').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    document.getElementById('refImg').src = ev.target.result;
+    const img = new Image();
+    img.onload = () => { refImageObj = img; };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+function dist(a, b) { return Math.sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2); }
+function isNeutral(c, thresh=22) { return (Math.max(...c) - Math.min(...c)) <= thresh; }
+
+function autoDetect() {
+  if (!refImageObj) { alert('Carregue uma imagem de referência primeiro.'); return; }
+  snapshot();
+
+  cols = parseInt(document.getElementById('cols').value);
+  rows = parseInt(document.getElementById('rows').value);
+  cellPx = parseInt(document.getElementById('cellPx').value);
+
+  const W = refImageObj.naturalWidth, H = refImageObj.naturalHeight;
+  const off = document.createElement('canvas');
+  off.width = W; off.height = H;
+  const octx = off.getContext('2d');
+  octx.drawImage(refImageObj, 0, 0);
+  const imgData = octx.getImageData(0, 0, W, H).data;
+
+  const px = (x, y) => {
+    const i = (y * W + x) * 4;
+    return [imgData[i], imgData[i+1], imgData[i+2], imgData[i+3]];
+  };
+
+  // 1) pre-achatamento: constroi uma paleta das 64 cores mais frequentes da imagem
+  // INTEIRA (varredura rapida) — isso vai servir pra "encaixar" cada ponto amostrado,
+  // eliminando pixels de transicao/antialiasing na origem antes de sequer chegar
+  // na amostragem por celula
+  const globalFreq = new Map();
+  for (let y = 0; y < H; y += 3) {
+    for (let x = 0; x < W; x += 3) {
+      const [pr, pg, pb] = px(x, y);
+      const key = [Math.floor(pr/12)*12, Math.floor(pg/12)*12, Math.floor(pb/12)*12].join(',');
+      globalFreq.set(key, (globalFreq.get(key) || 0) + 1);
+    }
+  }
+  const preflatPalette = [...globalFreq.keys()]
+    .sort((a,b) => globalFreq.get(b) - globalFreq.get(a))
+    .slice(0, 64)
+    .map(k => k.split(',').map(Number));
+
+  function snapToPreflat(color) {
+    return preflatPalette.reduce((best,k) => dist(k,color) < dist(best,color) ? k : best, preflatPalette[0]);
+  }
+
+  // 2) amostra multiplos pontos por celula (grade 3x3 esparsa), encaixando cada ponto
+  // na paleta pre-achatada, e pega a MODA entre eles
+  const cellColor = [];
+  for (let r = 0; r < rows; r++) {
+    cellColor.push([]);
+    for (let c = 0; c < cols; c++) {
+      const x0 = Math.floor(c * W / cols), x1 = Math.max(x0+1, Math.floor((c+1) * W / cols));
+      const y0 = Math.floor(r * H / rows), y1 = Math.max(y0+1, Math.floor((r+1) * H / rows));
+      const w = x1 - x0, h = y1 - y0, n = 3;
+      const counts = new Map();
+      for (let iy = 0; iy < n; iy++) {
+        for (let ix = 0; ix < n; ix++) {
+          const px_x = Math.min(x0 + Math.floor((ix + 0.5) * w / n), x1 - 1);
+          const px_y = Math.min(y0 + Math.floor((iy + 0.5) * h / n), y1 - 1);
+          const [pr, pg, pb] = px(px_x, px_y);
+          const snapped = snapToPreflat([Math.floor(pr/12)*12, Math.floor(pg/12)*12, Math.floor(pb/12)*12]);
+          const key = snapped.join(',');
+          counts.set(key, (counts.get(key) || 0) + 1);
+        }
+      }
+      let best = null, bestCount = -1;
+      counts.forEach((v, k) => { if (v > bestCount) { bestCount = v; best = k; } });
+      cellColor[r].push(best.split(',').map(Number));
+    }
+  }
+
+  // 2) fundo por flood-fill a partir das bordas, sobre pixels quase-brancos
+  const whiteThresh = 245;
+  const isBg = Array.from({length: rows}, () => Array(cols).fill(false));
+  const visited = Array.from({length: rows}, () => Array(cols).fill(false));
+  const queue = [];
+  for (let c = 0; c < cols; c++) { queue.push([0,c]); queue.push([rows-1,c]); }
+  for (let r = 0; r < rows; r++) { queue.push([r,0]); queue.push([r,cols-1]); }
+  while (queue.length) {
+    const [r,c] = queue.pop();
+    if (r<0||r>=rows||c<0||c>=cols||visited[r][c]) continue;
+    visited[r][c] = true;
+    const [cr,cg,cb] = cellColor[r][c];
+    if (!(cr>=whiteThresh && cg>=whiteThresh && cb>=whiteThresh)) continue;
+    isBg[r][c] = true;
+    queue.push([r+1,c],[r-1,c],[r,c+1],[r,c-1]);
+  }
+
+  // 3) frequencia + fusao (neutro so funde com neutro; cromatico com limiar mais rigido)
+  const freq = new Map();
+  for (let r=0;r<rows;r++) for (let c=0;c<cols;c++) {
+    if (isBg[r][c]) continue;
+    const key = cellColor[r][c].join(',');
+    freq.set(key, (freq.get(key)||0) + 1);
+  }
+  const ordered = [...freq.keys()].sort((a,b) => freq.get(b)-freq.get(a)).map(k => k.split(',').map(Number));
+
+  const maxColors = 10, mergeDist = 45, neutralMergeDist = 90;
+  const canonical = [];
+  for (const color of ordered) {
+    const merges = canonical.some(k => {
+      const bothNeutral = isNeutral(color) && isNeutral(k);
+      const oneNeutral = isNeutral(color) !== isNeutral(k);
+      if (oneNeutral) return false;
+      return dist(color,k) < (bothNeutral ? neutralMergeDist : mergeDist);
+    });
+    if (!merges) canonical.push(color);
+    if (canonical.length >= maxColors) break;
+  }
+  function nearestCanonical(color) {
+    const sameKind = canonical.filter(k => isNeutral(k) === isNeutral(color));
+    const pool = sameKind.length ? sameKind : canonical;
+    return pool.reduce((best,k) => dist(k,color) < dist(best,color) ? k : best, pool[0]);
+  }
+
+  // 4) monta paleta + grade
+  palette = canonical.map(c => ({hex: '#' + c.map(v => v.toString(16).padStart(2,'0')).join('')}));
+  renumber();
+  resetGrid();
+  for (let r=0;r<rows;r++) for (let c=0;c<cols;c++) {
+    if (isBg[r][c]) { grid[r][c] = -1; continue; }
+    const nearest = nearestCanonical(cellColor[r][c]);
+    grid[r][c] = canonical.findIndex(k => k === nearest || (k[0]===nearest[0]&&k[1]===nearest[1]&&k[2]===nearest[2]));
+  }
+
+  drawGrid();
+  renderSwatches();
+}
+
+document.getElementById('autoDetectBtn').addEventListener('click', autoDetect);
+document.getElementById('undoBtn').addEventListener('click', undo);
+
+
+document.getElementById('exportPngBtn').addEventListener('click', () => {
+  const W = parseInt(document.getElementById('exportW').value);
+  const H = parseInt(document.getElementById('exportH').value);
+  const out = document.createElement('canvas');
+  out.width = W; out.height = H;
+  const octx = out.getContext('2d');
+  octx.fillStyle = '#ffffff'; octx.fillRect(0,0,W,H);
+  const cw = W/cols, ch = H/rows;
+  for (let r=0;r<rows;r++) for (let c=0;c<cols;c++) {
+    const idx = grid[r][c];
+    if (idx === -1) continue;
+    octx.fillStyle = palette[idx].hex;
+    octx.fillRect(c*cw, r*ch, Math.ceil(cw), Math.ceil(ch));
+  }
+  out.toBlob((blob) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'gabarito.png';
+    a.click();
+  });
+});
+
+document.getElementById('exportJsonBtn').addEventListener('click', () => {
+  const data = {
+    cols, rows,
+    palette: palette.map(p => ({hex: p.hex, num: p.num})),
+    grid: grid.map(row => row.map(idx => idx === -1 ? null : palette[idx].num))
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'grade.json';
+  a.click();
+});
+
+// init
+defaultPalette();
+resetGrid();
+drawGrid();
+renderSwatches();
+</script>
+
+</body>
+</html>
