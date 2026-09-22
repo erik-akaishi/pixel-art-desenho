@@ -65,10 +65,10 @@
   <div class="panel" style="width:260px">
     <h2>Grade</h2>
     <div class="row">
-      <div><label>Colunas</label><input type="number" id="cols" value="42" min="2" max="120"></div>
-      <div><label>Linhas</label><input type="number" id="rows" value="55" min="2" max="120"></div>
+      <div><label>Colunas</label><input type="number" id="cols" value="100" min="2" max="120"></div>
+      <div><label>Linhas</label><input type="number" id="rows" value="100" min="2" max="120"></div>
     </div>
-    <div class="row"><label>Tamanho da célula (tela, px)</label><input type="number" id="cellPx" value="20" min="6" max="60"></div>
+    <div class="row"><label>Tamanho da célula (tela, px)</label><input type="number" id="cellPx" value="10" min="6" max="60"></div>
     <button id="resizeBtn">Aplicar tamanho de grade</button>
     <div class="hint">Redimensionar apaga a pintura atual.</div>
 
@@ -95,10 +95,10 @@
 
     <h2 style="margin-top:16px">Exportar</h2>
     <div class="row">
-      <div><label>Largura final (px)</label><input type="number" id="exportW" value="2362"></div>
-      <div><label>Altura final (px)</label><input type="number" id="exportH" value="3189"></div>
+      <div><label>Largura final (px)</label><input type="number" id="exportW" value="2000"></div>
+      <div><label>Altura final (px)</label><input type="number" id="exportH" value="2000"></div>
     </div>
-    <div class="hint">Padrão = especificação Etsy (200×270mm, compatível A4/Carta).</div>
+    <div class="hint">Padrão = 2000×2000px (quadrado).</div>
     <div class="row" style="margin-top:8px;">
       <button class="primary" id="exportPngBtn">⬇ Baixar PNG (gabarito)</button>
       <button class="primary" id="exportJsonBtn">⬇ Baixar JSON (grade + paleta)</button>
@@ -109,7 +109,7 @@
 </div>
 
 <script>
-let cols = 25, rows = 30, cellPx = 20;
+let cols = 100, rows = 100, cellPx = 10;
 let palette = []; // {hex, num}
 let activeIdx = 0;
 let tool = 'paint';
