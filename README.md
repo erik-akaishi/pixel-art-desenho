@@ -1,6 +1,6 @@
 # Pixel Art Mistério
 
-Produto pessoal (AK Labs / Erik + esposa) — coleção de pixel art "colorir por código" (mystery/color-by-number), estilo kawaii.
+Produto pessoal — coleção de pixel art "colorir por código" (mystery/color-by-number), estilo kawaii.
 
 ## Estrutura do projeto
 
